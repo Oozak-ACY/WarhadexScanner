@@ -1,0 +1,35 @@
+{
+    "content_keys_front": [
+        {
+            "key" : "KEYWORDS"
+        },
+        {
+            "key" : "FACTIONS KEYWORDS"
+        },
+        {
+            "key" : "RANGED WEAPONS"
+        },
+        {
+            "key" : "MELEE WEAPONS"
+        },
+        {
+            "key" : "ABILITIES"
+        },
+        {
+            "key" : "WARGEAR ABILITIES"
+        }
+
+    ],
+    "content_keys_rear": [
+        {
+            "key" : "WARGEAR OPTIONS"
+        },
+        {
+            "key" : "UNIT COMPOSITION"
+        },
+        {
+            "key" : "LEADER"
+        }
+
+    ]
+}
