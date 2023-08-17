@@ -11,39 +11,46 @@ def isStringIncomplete(string):
     return False
 
 def findDatasInText(game, type, page_content):
-    x=0
-    # Chemin d'accès complet au fichier JSON
-    file_name = game + ".json"
-    json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)) + "\\jsons\\", file_name)
-    # Charger les données du fichier JSON
-    with open(json_path, "r") as json_file:
-        data = json.load(json_file)
-    if type:
-        filter_keys = [item["key"] for item in data["content_keys_front"]]
-    else:
-        filter_keys = [item["key"] for item in data["content_keys_rear"]]
-        
-        
-    
     keywords =""
-    fig_keywords = {"keywords": []}    
-    while x<len(page_content):
-        is_string_incomplete = True
-        content = page_content[x]
-        if type:
-            if "RANGED WEAPONS" in content:
-                if x==0:
-                    fig_name = content  
-                for i in range(1,x):
-                    keywords = keywords + page_content[i]
-                keywords = keywords.replace("KEYWORDS:  ", "").split(", ")
-                for keyword in keywords:
-                    fig_keywords["keywords"].append({"keyword":keyword})
-                while 
-                i=x+6
-                            
-              
-        x+=1        
+    fig_keywords = {"keywords": []}  
+    fig_wargear = {"wargear": []}
+    fig_faction_keywords   = {"faction_keywords": []}
+    fig_abilities = {"abilities": []} 
+    x=0  
+    if x==0:
+        fig_name = page_content[0] 
+    for i in range(1,x):
+        keywords = keywords + page_content[i]
+    keywords = keywords.replace("KEYWORDS:  ", "").split(", ")
+    for keyword in keywords:
+        fig_keywords["keywords"].append({"keyword":keyword})
+    i=x+7
+    while "FACTION KEYWORDS" not in page_content[i]:
+        if "MELEE WEAPONS" not in page_content[i]:
+            weapon_name = page_content[i]
+            fig_weapon = {weapon_name: []}
+            fig_weapon[weapon_name].append({"RANGE":page_content[i+1]})
+            fig_weapon[weapon_name].append({"A":page_content[i+2]})
+            fig_weapon[weapon_name].append({"WS":page_content[i+3]})
+            fig_weapon[weapon_name].append({"S":page_content[i+4]})
+            fig_weapon[weapon_name].append({"AP":page_content[i+5]})
+            fig_weapon[weapon_name].append({"D":page_content[i+6]})
+            fig_wargear["wargear"].append(fig_weapon)
+        i=i+7
+    i+=1
+    iterator = 0
+    while "ABILITIES" not in page_content[i]:
+        if isStringIncomplete(page_content[i+iterator]):
+            iterator+=1 
+        else:
+            faction_keywords = ""
+            for j in range(i,i+iterator+1):
+                faction_keywords += page_content[j]
+            fig_faction_keywords["faction_keywords"].append({"faction_keyword":faction_keywords})
+        i+=1     
+    while page_content[i] != "M":
+                
+    x=i 
     
 
 def extraction40K(document):
@@ -68,14 +75,34 @@ def extraction40K(document):
             else:
                 is_front_card = False
                 
-            text_page = page.get_text().split("\n")
+            page_content = page.get_text().split("\n")
             
-            findDatasInText("40k", is_front_card, text_page)
+            # Chemin d'accès complet au fichier JSON
+            file_name = "40k" + ".json"
+            json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)) + "\\jsons\\", file_name)
+            # Charger les données du fichier JSON
+            with open(json_path, "r") as json_file:
+                data = json.load(json_file)
+            if type:
+                filter_keys = [item["key"] for item in data["content_keys_front"]]
+            else:
+                filter_keys = [item["key"] for item in data["content_keys_rear"]]
+                
+            
+            while x<len(page_content):
+
+                if type:
+                    if "RANGED WEAPONS" in page_content[x]:
+                       findDatasInText("40k", is_front_card, page_content) 
+        
+                x+=1    
+            
+            
             
             # Si la page actuelle est la face de la carte
             if is_front_card:
                 nbFig+=1
-                print(text_page[0])
+                print(page_content[0])
                 
             else:
                 test="oui"
