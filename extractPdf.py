@@ -1,6 +1,7 @@
 import fitz  # PyMuPDF
 import os
 import json
+import re
 
 
 
@@ -10,24 +11,57 @@ def isStringIncomplete(string):
             return True
     return False
 
+def isDefinition(string):
+    content = string.split(": ")
+    if len(content)>1 and len(content[0])>0:
+        return True
+    return False
+        
+
 def findDatasInText(game, type, page_content):
     keywords =""
     fig_keywords = {"keywords": []}  
     fig_wargear = {"wargear": []}
-    fig_faction_keywords   = {"faction_keywords": []}
-    fig_abilities = {"abilities": []} 
-    x=0  
-    if x==0:
-        fig_name = page_content[0] 
-    for i in range(1,x):
-        keywords = keywords + page_content[i]
-    keywords = keywords.replace("KEYWORDS:  ", "").split(", ")
+    fig_faction_keywords   = {"faction_keywords": []} 
+    fig_abilities = {"abilities": []}
+    fig_wargear_abilities = {"wargear_abilities": []}
+    fig_stats = {"stats": []}
+    i=0
+    iterator = 0
+    
+      
+    if i==0:
+        fig_name = page_content[0]
+        i+=1
+    
+    temp_keywords = ""
+#------------------------------------ OBTENTION DES MOT CLES --------------------------------
+    while isStringIncomplete(page_content[i+iterator]):
+        iterator+=1
+        temp_keywords += page_content[i+iterator]
+        
+    keywords = page_content[i] + temp_keywords
+    keywords = keywords.replace("  ", "")
+    keywords = keywords.replace("– ALL MODELS", "")
+    keywords = keywords.replace(" – " + fig_name, ", ")
+    keywords = keywords.replace("KEYWORDS", "")
+    keywords = keywords.replace(": ", "")
+    keywords = keywords.split(", ")
     for keyword in keywords:
         fig_keywords["keywords"].append({"keyword":keyword})
-    i=x+7
+#----------------------------------- FIN OBTENTION DES MOT CLES -----------------------------
+    i+= iterator + 8
+#----------------------------------- OBTENTION ARMES ----------------------------------------    
     while "FACTION KEYWORDS" not in page_content[i]:
-        if "MELEE WEAPONS" not in page_content[i]:
-            weapon_name = page_content[i]
+        if "MELEE WEAPONS" not in page_content[i] or "RANGED WEAPONS" not in page_content[i]: #ce test permet de passer à +7 i si on detecte le mot afin de ne rentrer que les données interessantes
+            iterator=0
+            temp_weapon_name = ""
+            while isStringIncomplete(page_content[i+iterator]):
+                iterator+=1
+                temp_weapon_name += page_content[i+iterator]
+            
+            weapon_name = page_content[i] +  temp_weapon_name
+            i+=iterator
             fig_weapon = {weapon_name: []}
             fig_weapon[weapon_name].append({"RANGE":page_content[i+1]})
             fig_weapon[weapon_name].append({"A":page_content[i+2]})
@@ -37,8 +71,10 @@ def findDatasInText(game, type, page_content):
             fig_weapon[weapon_name].append({"D":page_content[i+6]})
             fig_wargear["wargear"].append(fig_weapon)
         i=i+7
+#------------------------------------ FIN OBTENTION ARMES ----------------------------------
     i+=1
     iterator = 0
+#------------------------------------ OBTENTION MOT CLE FACTION --------------------------------
     while "ABILITIES" not in page_content[i]:
         if isStringIncomplete(page_content[i+iterator]):
             iterator+=1 
@@ -47,20 +83,90 @@ def findDatasInText(game, type, page_content):
             for j in range(i,i+iterator+1):
                 faction_keywords += page_content[j]
             fig_faction_keywords["faction_keywords"].append({"faction_keyword":faction_keywords})
-        i+=1     
+        i+=1    
+#----------------------------------- FIN MOT CLE FACTION -----------------------------------
+
+    i+=1
+    iterator = 0
+    content = ""
+    temp_content = ""
+#------------------------------------ OBTENTION COMPETENCES ------------------------------------
+    while page_content[i] != "WARGEAR ABILITIES":
+        if isStringIncomplete(page_content[i+iterator]):
+            iterator+=1
+            temp_content += page_content[i+iterator] 
+        else:
+            content = page_content[i-iterator] + temp_content
+            if temp_content:
+                i+=1
+                temp_content = ""
+                iterator = 0
+        
+        if isDefinition(content):
+            abilitie_definition = content.split(": ")
+            if "CORE" in abilitie_definition[0]:
+                fig_abilities["abilities"].append({"CORE":abilitie_definition[1]})
+            else:
+                fig_abilities["abilities"].append({abilitie_definition[0]:abilitie_definition[1]})
+            content = ""
+        i+=1
+#----------------------------------- FIN OBTENTION COMPETENCES ---------------------------------
+
+    i+=1
+
+#------------------------------------ OBTENTION COMPETENCES EQUIPEMENT------------------------------------
     while page_content[i] != "M":
-                
+        if isStringIncomplete(page_content[i+iterator]):
+            iterator+=1
+            temp_content += page_content[i+iterator] 
+        else:
+            content = page_content[i-iterator] + temp_content
+            if temp_content:
+                temp_content = ""
+                iterator = 0
+        
+        if isDefinition(content):
+            abilitie_definition = content.split(": ")
+            fig_wargear_abilities["wargear_abilities"].append({abilitie_definition[0]:abilitie_definition[1]})
+            content = ""
+        i+=1
+#----------------------------------- FIN OBTENTION COMPETENCES EQUIPEMENT ---------------------------------
+    i+=6
+    iterator = 0
+    nb_stats = 6 #il y a 6 statistiques à enregistrer   
+#----------------------------------- OBTENTION STATS ------------------------------------------------------
+    while i<=len(page_content):
+        while bool(re.search(r'\d', page_content[i+iterator])):
+            iterator+=nb_stats
+            content = page_content[i+iterator]
+        nb_substats = int(iterator/nb_stats)
+        temp_iterator = nb_substats-1
+        for j in range(0, nb_substats):
+            substat_name = page_content[i+iterator+temp_iterator]
+            fig_substat = {substat_name: []}
+            fig_substat[substat_name].append({"M":page_content[i+(nb_stats*j)]})
+            fig_substat[substat_name].append({"T":page_content[i+(nb_stats*j)+1]})
+            fig_substat[substat_name].append({"SV":page_content[i+(nb_stats*j)+2]})
+            fig_substat[substat_name].append({"W":page_content[i+(nb_stats*j)+3]})
+            fig_substat[substat_name].append({"LD":page_content[i+(nb_stats*j)+4]})
+            fig_substat[substat_name].append({"OC":page_content[i+(nb_stats*j)+5]})
+            fig_stats["stats"].append(fig_substat)
+            temp_iterator-=1    
+            
+        i+=1    
+#----------------------------------- FIN OBTENTION STATS ---------------------------------------------------
     x=i 
     
 
 def extraction40K(document):
     first_fig_page_modulo = ""
     nbFig = 0
+    x=0
 
     # Boucle sur toutes les pages du PDF
     for page_num in range(document.page_count):
         # Obtenir l'objet Page de la page actuelle
-        page = document.load_page(page_num)   
+        page = document.load_page(30)   
         if isHorizontale(page):
             # Si la variable est vide alors rempli la variable avec le modulo du numéro de page
             # Ceci est fait afin de savoir si la première page de stat fig est paire ou impaire
@@ -83,19 +189,13 @@ def extraction40K(document):
             # Charger les données du fichier JSON
             with open(json_path, "r") as json_file:
                 data = json.load(json_file)
-            if type:
+            if is_front_card:
                 filter_keys = [item["key"] for item in data["content_keys_front"]]
             else:
                 filter_keys = [item["key"] for item in data["content_keys_rear"]]
                 
+            findDatasInText("40k", is_front_card, page_content)     
             
-            while x<len(page_content):
-
-                if type:
-                    if "RANGED WEAPONS" in page_content[x]:
-                       findDatasInText("40k", is_front_card, page_content) 
-        
-                x+=1    
             
             
             
