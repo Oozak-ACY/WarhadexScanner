@@ -210,7 +210,7 @@ def extraction40K(document):
 
                 
 def exportJson(game):
-    dir_jsons = os.path.dirname(os.path.abspath(__file__)) + "\\jsons\\"
+    dir_jsons = "C:\Projets\www\GitHub\WarhadexScanner"
     files = [file for file in os.listdir(dir_jsons) if file.endswith(".json")]
     json_file_name = game + "figs.json"
     dir_json_file = os.path.join(dir_jsons, json_file_name)
@@ -239,7 +239,7 @@ def isHorizontale(page):
     return True
 
 def extractionMain(game):
-    dir_import = os.path.dirname(os.path.abspath(__file__)) + "\\imports\\"
+    dir_import = "C:\Projets\www\GitHub\WarhadexScanner\imports"
     # Obtient la liste de tous les fichiers dans le répertoire 'imports'
     files = [file for file in os.listdir(dir_import) if file.endswith(".pdf")]
     
