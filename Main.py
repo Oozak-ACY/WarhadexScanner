@@ -39,15 +39,21 @@ class PDFPage:
     def parseText(self):
         page_content = self.getText().split("\n")
         x=0
+        xIsDefinition = False
         while x<len(page_content):
             if self.isStringIncomplete(page_content[x]):
-                if page_content[x+1] == 'Melee':
+                if page_content[x+1] == 'Melee' or '"' in page_content[x+1] or xIsDefinition:
                     page_content[x] = page_content[x][:len(page_content[x])-1]
+                    
                 else:
-                    page_content[x] += page_content[x+1]
-                    page_content[x] += page_content[x].replace("  ", " ")
-                    page_content.pop(x+1)
+                    if not self.isDefinition(page_content[x+1]):
+                        page_content[x] += page_content[x+1]
+                        page_content[x] = page_content[x].replace("  ", " ")
+                        page_content.pop(x+1)
+                    else:
+                        xIsDefinition = True
             else:
+                xIsDefinition = False
                 x+=1
         self.page_content = page_content
         
@@ -91,10 +97,18 @@ class PDFPage:
                 self.front_content_limits_keys.remove(limits_key)
                 if last_limits_key:
                     limits[last_limits_key].append(x)
+                elif x!=0:
+                    limits["NAME"] = [0, x]
                 if limits_key not in limits:
                     last_limits_key = limits_key
                     limits[limits_key] = []
                     limits[limits_key].append(x)
+            elif last_limits_key in ["MELEE WEAPONS", "RANGED WEAPONS"] and self.isDefinition(page_content[x+1]) and x+1<len(page_content):
+                while self.isStringIncomplete(page_content[x+1]):
+                    page_content[x+1] = page_content[x] +page_content[x+2]
+                    page_content.pop(x+2)
+                page_content.pop(x+1)
+                
             
             # Si la chaine contient un element de fig stats limit key alors rentre les valeurs de bornages du contenu concerné        
             if self.isStringInALimitsKey(2, line):
@@ -106,18 +120,21 @@ class PDFPage:
                     limits[last_limits_key].append(x)
                     stats_last_limits_key = "STATS"
             
+                
+            
             # Si on a atteint la derniere chaine et que ce n'est pas un clé de bornage alors note l'indice dans la dernière clé concernée      
             if x+1 == len(page_content) and not self.isStringInALimitsKey(-1, line):
                 if last_limits_key:
                     limits[last_limits_key].append(len(page_content))
+                    
                            
-        x+=1
+            x+=1
             
-        # Permet d'ajouter le nom de la carte dans le tableau ainsi que les indices de bornage
-        limits_keys_values = list(limits.values())
-        first_key_values = limits_keys_values[0]
-        if first_key_values[0]>0:
-            limits["NAME"] = [0, first_key_values[0]]
+        # # Permet d'ajouter le nom de la carte dans le tableau ainsi que les indices de bornage
+        # limits_keys_values = list(limits.values())
+        # first_key_values = limits_keys_values[0]
+        # if first_key_values[0]>0:
+        #     limits["NAME"] = [0, first_key_values[0]]
         
         return limits
     
@@ -127,30 +144,113 @@ class PDFPage:
         content_limits = self.getContentLimits()
         page_content = self.page_content
         content_keys = list(content_limits.keys())
-        fig_data = {}
+        content_values = list(content_limits.values())
+        fig = Figurine()
+
 
         
         for part_name, keys in content_limits.items():
             start_index = keys[0]
             end_index = keys[1]
+            limit_key_iterator = 0
+            x_weapon_stats_iterator = 0
+            weapon_limit_key = []
+            weapon_stats = {}
             for x in range(start_index, end_index):
                 content = page_content[x]
-                if part_name in ["MELEE WEAPONS", "RANGED WEAPONS"] and self.isDefinition(page_content[x+1]) and x+1<end_index:
-                    page_content[x] += page_content[x+1] + ' '
-                    page_content[x+1] = ''
-                    
-
-                    
-                if part_name in ["KEYWORDS", "FACTION KEYWORDS"]:
-                    exvar = 0
+                
+                if part_name in ["MELEE WEAPONS", "RANGED WEAPONS"]:
+                    content = content.lstrip()
+                    if limit_key_iterator == len(fig.weapon_stat_key)-1:
+                        if x_weapon_stats_iterator%limit_key_iterator == 0:
+                            weapon_stats[content] = []
+                            last_weapon_name = content
+                            x_weapon_stats_iterator = 0
+                        else:
+                            weapon_stats[last_weapon_name].append({weapon_limit_key[x_weapon_stats_iterator-1]: content})
+                        x_weapon_stats_iterator +=1
+                    else:
+                       if fig.isWeaponStatKey(content):
+                            limit_key_iterator+=1
+                            weapon_limit_key.append(content)  
+                elif part_name in ["KEYWORDS", "FACTION KEYWORDS"]:
+                    fig.setNewKeyword(content, part_name)
+                elif part_name == "NAME":
+                    fig.setName(content)
+                elif part_name == "ABILITIES":
+                    if x != start_index:
+                        if "CORE" in content or "FACTION" in content:
+                            abilitie_line = content.split(":")
+                            abilities = abilitie_line[1].split(",")
+                            for abilitie in abilities:
+                                # Si le premier caractère de abilitie est un espace, supprimer celui-ci
+                                if abilitie[0] == " ":
+                                    abilitie = abilitie[1:] 
+                                fig.setNewAbilities(abilitie, abilitie_line[0])
+                        else:
+                            abilitie_line = content.split(":")
+                            # Si le premier caractère de abilitie est un espace, supprimer celui-ci
+                            if abilitie_line[1][0] == " ":
+                                abilitie_line[1] = abilitie_line[1][1:]
+                            fig.setNewAbilities(abilitie_line[1], abilitie_line[0])
         stopvar=0
     
     
     
 class Figurine:
 
-    def __init__(self, nom):
-        self.nom = nom
+    def __init__(self):
+        self.name = ""
+        self.keywords = {}
+        self.weapons = {}
+        self.abilities = {}
+        self.stats = {}
+        self.weapon_stat_key = ["RANGE", "A", "BS", "S", "AP", "D", "WS"]
+        self.fig_stat_key = ["M", "T", "SV","W","LD","OC"]
+        
+    def setName(self, name):
+        self.name = name
+    
+    def setNewKeyword(self, keyword, type):
+        if type not in self.keywords:
+            self.keywords[type] = []
+        keywords = keyword
+        keywords = keywords.replace("  ", "")
+        keywords = keywords.replace("– ALL MODELS", "")
+        keywords = keywords.replace(" – " + self.name, ", ")
+        keywords = keywords.replace(type, "")
+        keywords = keywords.replace(": ", "")
+        keywords = keywords.split(", ")
+        for part in keywords:
+            self.keywords[type].append(part)
+    
+    def isWeaponStatKey(self, string):
+        for element in self.weapon_stat_key:
+            if string == element:
+                return True
+        return False
+    
+    def isFigStatKey(self, string):
+        for element in self.fig_stat_sey:
+            if string == element:
+                return True
+        return False
+    
+    def setNewWeapon(self, weapon, type):
+        if type not in self.weapons:
+
+            self.weapons[type] = []
+        self.weapons[type].append(weapon)
+    
+    def setNewAbilities(self, abilitie, abilitie_name):
+        if abilitie_name not in self.abilities:
+            self.abilities[abilitie_name] = []
+        self.abilities[abilitie_name].append(abilitie)
+    
+    def setStats(self, stats):
+        self.abitilies["STATS"].append(stats)
+
+    
 class PDFFile:
     
     def __init__(self, document):
@@ -165,7 +265,7 @@ class PDFFile:
         nb_pages = self.getTotalPage()
         first_horizontale_page = False
         for x_page in range(nb_pages):
-            page = PDFPage(self.document.load_page(x_page))
+            page = PDFPage(self.document.load_page(60))
             if page.isHorizontale():
                 if not first_horizontale_page:
                     first_horizontale_page = x_page
